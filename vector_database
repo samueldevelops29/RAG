@@ -1,0 +1,198 @@
+# vector_database.py
+import os
+import uuid
+import fitz  # PyMuPDF
+import pandas as pd
+import glob
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import PointStruct, Distance, VectorParams
+from sentence_transformers import SentenceTransformer
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# ==== Qdrant-Konfiguration ====
+COLLECTION_NAME = "my_documents"
+QDRANT_URL = "https://b48ee78f-42fc-41b4-8cc8-83d7f15fa7e4.eu-west-2-0.aws.cloud.qdrant.io:6333"
+API_KEY = "QDRANT-KEY"
+
+client = QdrantClient(url=QDRANT_URL, api_key=API_KEY)
+# all-MiniLM-L6-v2 für besseres Chunking, dauert nur länger
+# paraphrase-MiniLM-L3-v2 ist schneller, aber weniger Genauigkeit als anderes Modell
+model = SentenceTransformer("paraphrase-MiniLM-L3-v2")
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+
+# ==== Datenquellen ====
+BASE_FOLDER = "C:/Users/arapo/OneDrive - N-ERGIE AG/Dokumente/learn_assistent_tool/Unternehmensdokus"
+
+
+# ==== Funktionen ====
+def extract_text_from_url(url):
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url, timeout=60000)
+            page.wait_for_timeout(3000)
+            html = page.content()
+            browser.close()
+        soup = BeautifulSoup(html, "html.parser")
+        main = soup.find("main") or soup.find("article") or soup.body
+        return main.get_text(separator="\n").strip() if main else ""
+    except Exception as e:
+        print(f"❌ Fehler beim Laden der Website {url}: {e}")
+        return ""
+
+def extract_text_from_pdf(path):
+    try:
+        doc = fitz.open(path)
+        return "\n".join(page.get_text() for page in doc)
+    except Exception as e:
+        print(f"❌ Fehler beim PDF {path}: {e}")
+        return ""
+    
+
+def extract_text_from_excel(path):
+    try:
+        # Alle Blätter in der Excel-Datei einlesen
+        excel_data = pd.read_excel(path, sheet_name=None)
+        
+        # Alle Daten aus allen Blättern zusammenfassen
+        text_parts = []
+        for sheet_name, df in excel_data.items():
+            text_parts.append(f"--- Blatt: {sheet_name} ---\n")
+            text_parts.append(df.astype(str).to_string(index=False))
+            text_parts.append("\n")
+
+        return "\n".join(text_parts)
+    except Exception as e:
+        print(f"❌ Fehler beim Lesen der Excel-Datei {path}: {e}")
+        return ""
+    
+def extract_text_from_csv(path):
+    try:
+        df = pd.read_csv(path)
+        text_parts = []
+        text_parts.append(f"--- CSV: {os.path.basename(path)} ---\n")
+        text_parts.append(df.astype(str).to_string(index=False))
+        return "\n".join(text_parts)
+    except Exception as e:
+        print(f"❌ Fehler beim CSV {path}: {e}")
+        return ""
+    
+def find_files():
+    # Unterstützte Dateitypen
+    file_types = ["pdf", "xlsx", "csv"]
+    files = []
+
+    for ext in file_types:
+        pattern = os.path.join(BASE_FOLDER, f"*.{ext}")
+        for path in glob.glob(pattern):
+            filename = os.path.basename(path)
+            title = os.path.splitext(filename)[0]
+            files.append((title, path, ext))
+    return files
+
+
+# ==== Hauptfunktion: Laden & Speichern ====
+def load_documents(custom_file: tuple[str, str, str]):
+    """
+    Verarbeitet EINE einzelne Datei, vektorisiert sie und speichert sie in Qdrant.
+    Gibt die extrahierten Text-Chunks zurück.
+    """
+    try:
+        title, path, filetype = custom_file
+        print(f"🚀 Starte Verarbeitung für: {title}")
+
+        if not os.path.exists(path):
+            print(f"⚠️ Datei nicht gefunden: {path}")
+            return []
+
+        # 1. Text extrahieren je nach Dateityp
+        text = ""
+        if filetype == "pdf":
+            text = extract_text_from_pdf(path)
+        elif filetype in ["xlsx", "xls"]:
+            text = extract_text_from_excel(path)
+        elif filetype == "csv":
+            text = extract_text_from_csv(path)
+        else:
+            print(f"❌ Unbekannter Dateityp: {filetype}")
+            return []
+
+        if not text.strip():
+            print(f"⚠️ Keine Inhalte extrahiert aus {title}")
+            return []
+
+        # 2. Text in Chunks aufteilen
+        chunks = text_splitter.split_text(text)
+        payloads = [{"source": title, "text": chunk} for chunk in chunks]
+        
+        if not chunks:
+            print("🚫 Keine Chunks erstellt. Abbruch.")
+            return []
+
+        # 3. Vektorisierung & Upload in Qdrant
+        print(f"🧠 Vektorisiere {len(chunks)} Chunks...")
+        vectors = model.encode(chunks, show_progress_bar=True)
+
+        points = [
+            PointStruct(id=str(uuid.uuid4()), vector=vec.tolist(), payload=payloads[i])
+            for i, vec in enumerate(vectors)
+        ]
+
+        # Collection prüfen oder erstellen
+        if not client.collection_exists(COLLECTION_NAME):
+            client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=VectorParams(size=len(vectors[0]), distance=Distance.COSINE)
+            )
+        
+        # Upsert der neuen Punkte
+        client.upsert(collection_name=COLLECTION_NAME, points=points, wait=True)
+        print(f"✅ {len(points)} neue Chunks wurden erfolgreich in Qdrant gespeichert.")
+
+        # 4. Die neuen Dokumenten-Chunks zurückgeben
+        return payloads
+
+    except Exception as e:
+        print(f"❌ Fehler in process_and_store_document: {e}")
+        # Wichtig: Fehler weitergeben, damit das API-Endpoint ihn fangen kann
+        raise e
+    
+def query_qdrant(user_input: str, limit=3):
+    try:
+        # 🔹 Stelle sicher, dass ein einzelner String übergeben wird
+        if not isinstance(user_input, str):
+            raise ValueError("❌ Fehler: 'user_input' muss ein String sein!")
+
+        # 🔹 Embedding erzeugen (einzelner Vektor)
+        query_vector = model.encode(user_input).tolist()  # ✅ KEIN [[]]
+
+        # 🔹 Suche in Qdrant starten
+        results = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vector,  # ✅ flache Liste mit floats
+            limit=limit
+        )
+        antworten = []
+        for r in results:
+            text = r.payload.get("text", "❌ Kein Text gefunden")
+            quelle = r.payload.get("quelle") or r.payload.get("source", "❌ Keine Quelle angegeben")
+            antworten.append({
+              "score": r.score,
+              "text": text,
+              "quelle": quelle
+     })
+            print(f"🔍 Treffer mit Score {r.score:.2f}:\n{text[:300]}...\nQuelle: {quelle}\n")
+        if not antworten:
+            antworten.append({"score": 0, "text": "Keine passenden Informationen gefunden.", "quelle": "❌"})
+        return antworten
+    except Exception as e:
+        print(f"❌ Fehler bei Qdrant-Suche: {e}")
+        return [{"score": 0, "text": f"Fehler bei der Abfrage: {e}", "quelle": "❌"}]
+
+
+
+if __name__ == "__main__":
+    load_documents()
