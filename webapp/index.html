@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lernassistenzplattform</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+            color: #333;
+            animation: fadeIn 1s ease-in;
+        }
+
+        header {
+            background-color: #2e3a59;
+            color: #fff;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+
+        header p {
+            margin-top: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        main {
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .topic-container {
+            display: flex;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .topic {
+            background-color: white;
+            border: 2px solid #2e3a59;
+            border-radius: 12px;
+            width: 250px;
+            padding: 1.5rem 1rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+            text-align: center;
+        }
+
+        .topic:hover {
+            transform: translateY(-5px);
+        }
+
+        .topic-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #2e3a59;
+            margin-bottom: 0.8rem;
+        }
+
+        .topic-description {
+            font-size: 0.95rem;
+            color: #444;
+            line-height: 1.4;
+        }
+
+        .topic-link {
+            text-decoration: none;
+        }
+
+        .explanation {
+            margin-top: 2rem;
+            text-align: center;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            font-size: 1.1rem;
+        }
+
+        .custom-search {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .custom-search button {
+            padding: 0.8rem 1.6rem;
+            background-color: #2e3a59;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .custom-search button:hover {
+            background-color: #3d4a6b;
+        }
+
+        footer {
+            margin-top: 3rem;
+            background-color: #2e3a59;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            font-size: 0.9rem;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Knowledge Path</h1>
+    <p>Teste dein Wissen und starte deine persönliche Lernreise</p>
+    <section class="explanation">
+        <h3>Was erwartet dich?</h3>
+        <p> Beantworte einige gezielte Fragen zu deinem Kenntnisstand. 
+            Das System analysiert deine Antworten, erkennt potenzielle Wissenslücken und erstellt daraufhin personalisierte Empfehlungen und Lernressourcen, um dich gezielt weiterzubringen.
+        </p>
+    </section>
+</header>
+
+<div class="topic-container">
+    <a href="quiz.html" class="topic-link">
+        <div class="topic">
+            <div class="topic-title">Teste dein Wissen</div>
+            <div class="topic-description">
+                
+            </div>
+        </div>
+    </a>
+</div>
+
+<section class="custom-search">
+    <h2>Oder starte eine eigene Suche</h2>
+    <a href="query.html">
+        <button type="button">Eigene Suchanfrage</button>
+    </a>
+</section>
+
+<hr style="margin: 3rem 0;">
+
+<h2>📂 Eigene Dokumente hochladen</h2>
+<p>Du kannst hier ein eigenes PDF Dokumente hochladen, über das du später Fragen beantworten möchtest.</p>
+
+<form id="uploadForm">
+  <input type="file" id="fileInput" accept=".pdf,.xlsx,.xls,.csv" required>
+  <button type="submit">Hochladen & analysieren</button>
+</form>
+
+<div id="uploadStatus" style="margin-top: 1rem;"></div>
+
+<footer>
+    <p>&copy; 2025 Knowledge Path – Lernassistenzplattform von Samuel Arapoglu</p> 
+</footer>
+
+</body>
+
+<script>
+document.getElementById("uploadForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+
+  const fileInput = document.getElementById("fileInput");
+  const statusDiv = document.getElementById("uploadStatus");
+
+  if (fileInput.files.length === 0) {
+    statusDiv.innerHTML = "<p style='color:red;'>Bitte wähle eine Datei aus.</p>";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", fileInput.files[0]);
+
+  try {
+    const response = await fetch("http://127.0.0.1:8000/upload_document", { 
+      method: "POST", // <-- Steht hier wirklich POST?
+      body: formData,
+     });
+    const data = await response.json();
+
+    if (response.ok) {
+      statusDiv.innerHTML = `<p style='color:green;'>✅ ${data.message}</p>`;
+      // Nach 2 Sekunden zur Quiz-Seite weiterleiten
+      setTimeout(() => {
+          window.location.href = 'quiz.html';
+      }, 2000);
+    } else {
+      statusDiv.innerHTML = `<p style='color:red;'>❌ Fehler: ${data.error}</p>`;
+    }
+  } catch (error) {
+    statusDiv.innerHTML = `<p style='color:red;'>❌ Upload fehlgeschlagen: ${error}</p>`;
+  }
+});
+</script>
+
+</html>
