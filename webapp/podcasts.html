@@ -1,0 +1,50 @@
+<body>
+  <h1>Podcast via RSS-Feed</h1>
+
+  <select id="podcastSelect" onchange="ladePodcast(this.value)">
+    <option>Bitte Folge wählen</option>
+  </select>
+
+  <audio id="audioPlayer" controls style="width: 100%; margin-top: 10px;">
+    Dein Browser unterstützt das Audio-Element nicht.
+  </audio>
+
+  <script>
+    async function ladeRSS() {
+      const res = await fetch("http://127.0.0.1:8000/rss_feed");
+      const text = await res.text();
+
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(text, "text/xml");
+
+      const items = xml.querySelectorAll("item");
+      const select = document.getElementById("podcastSelect");
+      const player = document.getElementById("audioPlayer");
+
+      items.forEach((item, i) => {
+        const title = item.querySelector("title").textContent;
+        const url = item.querySelector("enclosure").getAttribute("url");
+
+        const option = document.createElement("option");
+        option.value = url;
+        option.textContent = title;
+
+        select.appendChild(option);
+
+        if (i === 0) {
+          player.src = url;  // Erster Track direkt laden
+        }
+      });
+    }
+
+    function ladePodcast(url) {
+      const player = document.getElementById("audioPlayer");
+      player.src = url;
+      player.play();
+    }
+
+    window.onload = function () {
+      ladeRSS();
+    };
+  </script>
+</body>
