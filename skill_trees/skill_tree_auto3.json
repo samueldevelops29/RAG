@@ -1,0 +1,66 @@
+{
+  "SAP BTP": {
+    "skills": [
+      {
+        "name": "Verstehen der Nutzung von RFC-Technologie aus Sicht SAP Remote Function Control",
+        "source": "Quelle: Ausschreibung EWS - Systembeschreibung SAP BW"
+      },
+      {
+        "name": "Verstehen der Nutzung von DB-Connect (ODBC)",
+        "source": "Quelle: Ausschreibung EWS - Systembeschreibung SAP BW"
+      },
+      {
+        "name": "Verstehen der Nutzung von sftp File Transfer",
+        "source": "Quelle: Ausschreibung EWS - Systembeschreibung SAP BW"
+      },
+      {
+        "name": "Verstehen der Kompatibilität von Integrations-Content-Artefakten zwischen Neo und Cloud Foundry Umgebungen",
+        "source": "Quelle: Cloud Integration"
+      }
+    ]
+  },
+  "CAP": {
+    "skills": [
+      {
+        "name": "Verstehen der Aufbereitung und Anpassung vor der Erstellung der Bestellung im ERP Backend",
+        "source": "Quelle: PS_Realisierungsdokumentation_V22"
+      }
+    ]
+  },
+  "Fiori": {
+    "skills": [
+      {
+        "name": "Verstehen der Berechtigungen für den Zugriff auf eine SAP-GUI-Transaktion",
+        "source": "Quelle: ADM945_S4_Berechtigungskonzept Fiori"
+      },
+      {
+        "name": "Verstehen der Rolle des SAP-Fiori-Katalogs",
+        "source": "Quelle: ADM945_S4_Berechtigungskonzept Fiori"
+      },
+      {
+        "name": "Verstehen der Funktion von Benachrichtigungen in SAP Fiori",
+        "source": "Quelle: ADM945_S4_Berechtigungskonzept Fiori"
+      }
+    ]
+  },
+  "CDS": {
+    "skills": [
+      {
+        "name": "Verstehen der Tabellenberechtigungsgruppe einer Tabelle oder Pflege-View",
+        "source": "Quelle: ADM940_S4_Berechtigungskonzept für SAP"
+      }
+    ]
+  },
+  "Systemarchitektur": {
+    "skills": [
+      {
+        "name": "Verstehen der Risiken und Herausforderungen von Custom Code",
+        "source": "Quelle: 1_V010_SAP_CleanCore_BTP_LeanIX"
+      },
+      {
+        "name": "Verstehen der Nutzung von Systemkopien für Tests und Entwicklungen",
+        "source": "Quelle: 2024_S4HC_Delta-Design_TPIT_Architektur"
+      }
+    ]
+  }
+}
