@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fragen zur Selbsteinschätzung</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f6f8;
+      color: #222;
+      margin: 0;
+      padding: 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    header h1 {
+      font-weight: 700;
+      color: #0a4a8f;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px 40px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+
+    .question {
+      margin-bottom: 30px;
+    }
+
+    .question h2 {
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+      color: #0a4a8f;
+    }
+
+    .options label {
+      display: block;
+      margin-bottom: 10px;
+      cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 5px;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .options input[type="radio"] {
+      margin-right: 10px;
+    }
+
+    .options label:hover {
+      background-color: #e6f0fa;
+      border-color: #0a4a8f;
+    }
+
+    .options input[type="radio"]:checked + label {
+      background-color: #0a4a8f;
+      color: white;
+      border-color: #0a4a8f;
+    }
+
+    button {
+      display: block;
+      margin: 0 auto;
+      background-color: #0a4a8f;
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #084375;
+    }
+
+    .result {
+      margin-top: 30px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #0a4a8f;
+    }
+
+    .empfehlung {
+      background-color: #fff;
+      border-left: 5px solid #0a4a8f;
+      padding: 15px 20px;
+      margin-top: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+
+    .empfehlung h3 {
+      margin: 0 0 10px;
+      color: #0a4a8f;
+    }
+
+    .empfehlung p {
+      margin: 4px 0;
+      font-size: 0.95rem;
+    }
+
+    .link-button {
+      display: inline-block;
+      margin-top: 15px;
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: #0a4a8f;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Selbsteinschätzung: SAP Backend Wissen</h1>
+    <p>Beantworte die Fragen, um deinen Kenntnisstand zu prüfen.</p>
+  </header>
+
+  <form id="quizForm" onsubmit="auswertungAbsenden(event); return false;">
+    <div id="frageContainer"></div>
+    <button type="submit">Lernempfehlung abrufen</button>
+  </form>
+
+  <div class="result" id="result"></div>
+  <div id="ergebnisContainer"></div>
+  <div id="feedbackSpinner" style="margin-top: 30px;"></div>
+
+  <div id="player" style="margin-top:30px;"></div>
+  <div id="podcastLinkContainer" style="margin-top: 20px; text-align: center;">
+    <!-- Hier erscheint später der Link, um Podcasts zu generieren -->
+  </div>
+
+<script>
+let gespeicherteEmpfehlungen = null;
+
+async function ladeFragen() {
+  const response = await fetch("http://127.0.0.1:8000/fragen");
+  const daten = await response.json();
+  window.fragenDaten = daten;
+  const container = document.getElementById("frageContainer");
+
+  let frageIndex = 0;
+
+  Object.entries(daten).forEach(([skill, frageObj]) => {
+    frageIndex++;
+    const div = document.createElement("div");
+    div.className = "question";
+    div.id = `q${frageIndex}`;
+
+    let antwortHtml = "";
+
+    frageObj.antworten.forEach((antwort, i) => {
+      antwortHtml += `
+        <label>
+          <input type="radio" name="${skill}" value="${i}" />
+          ${antwort.text}
+        </label>
+      `;
+    });
+
+    const html = `
+      <h2>${frageIndex}. ${frageObj.frage}</h2>
+      <div class="options">
+        ${antwortHtml}
+      </div>
+      <small style="color:#555;font-style:italic;">Thema: ${skill}</small>
+    `;
+
+    div.innerHTML = html;
+    container.appendChild(div);
+  });
+}
+
+// Lade Fragen beim Laden der Seite
+window.onload = ladeFragen;
+
+async function auswertungAbsenden(event) {
+  event.preventDefault();
+  const form = document.getElementById("quizForm");
+  const formData = new FormData();
+  const questions = form.querySelectorAll(".question");
+
+  const container = document.getElementById("ergebnisContainer");
+  container.innerHTML = "";
+
+  questions.forEach((question) => {
+    const selected = question.querySelector("input[type='radio']:checked");
+    const skill = question.querySelector("small").textContent.replace("Thema: ", "");
+    if (selected) {
+      formData.append(skill, selected.value);
+    }
+  });
+
+  try {
+    // 📊 Auswertung abrufen
+    const response = await fetch("http://127.0.0.1:8000/auswertung", {
+      method: "POST",
+      body: formData
+    });
+
+    const daten = await response.json();
+
+    if (!daten.empfehlungen || !Array.isArray(daten.empfehlungen)) {
+      throw new Error("Antwortformat ungültig oder leer.");
+    }
+
+    container.innerHTML = "<h2>📚 Deine Lernempfehlungen</h2>";
+
+    daten.empfehlungen.forEach((eintrag, i) => {
+      container.innerHTML += `
+        <div class="empfehlung">
+          <h3>${i + 1}. ${eintrag.skill}</h3>
+          <p><strong>Lösung:</strong> ${eintrag.richtige_antwort}</p>
+          <p><strong>Quellen:</strong></p>
+          <ul><li>${eintrag.quelle}</li></ul>
+        </div>
+      `;
+    });
+
+    // Speichern, damit Podcasts später generiert werden können
+    localStorage.setItem('quizResults', JSON.stringify(daten.empfehlungen));
+
+    // 🎧 Nur den Link zum Generieren anzeigen
+    const podcastDiv = document.getElementById("podcastLinkContainer");
+    podcastDiv.innerHTML = `<span class="link-button" onclick="generatePodcasts()">🎧 Podcasts generieren</span>`;
+
+    // ✅ Jetzt sofort das Streaming-Feedback starten
+    const feedbackSpinner = document.getElementById("feedbackSpinner");
+    feedbackSpinner.innerHTML = `
+      <div class="empfehlung">
+        <h3>🔎 Gesamtfazit</h3>
+        <p id="streamingOutput" style="white-space: pre-line;"></p>
+      </div>
+    `;
+
+    const outputEl = document.getElementById("streamingOutput");
+    outputEl.textContent = "";
+
+    // 📡 Streaming-Antwort vom Server
+    const streamResponse = await fetch("http://127.0.0.1:8000/feedback_stream", {
+      method: "POST",
+      body: JSON.stringify(daten.empfehlungen),
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+
+    if (!streamResponse.ok) {
+      throw new Error("Streaming fehlgeschlagen");
+    }
+
+    const reader = streamResponse.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      outputEl.textContent += chunk;
+    }
+
+  } catch (error) {
+    container.innerHTML += "<p style='color:red;'>❌ Fehler bei der Auswertung oder beim Feedback.</p>";
+    console.error("Fehler bei der Auswertung:", error);
+  }
+}
+
+// 🎧 Funktion, die nur beim Klick aufgerufen wird
+async function generatePodcasts() {
+  const gespeicherteEmpfehlungen = JSON.parse(localStorage.getItem('quizResults') || "[]");
+  if (!gespeicherteEmpfehlungen.length) {
+    alert("❌ Keine Empfehlungen vorhanden. Bitte erst das Quiz abschließen.");
+    return;
+  }
+
+  try {
+    // 🔥 Podcasts erst jetzt generieren
+    await fetch("http://127.0.0.1:8000/podcasts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fehlerthemen: gespeicherteEmpfehlungen })
+    });
+
+    // ✅ Feedback an den User
+    const podcastDiv = document.getElementById("podcastLinkContainer");
+    podcastDiv.innerHTML = `<p style="color:green;font-weight:bold;">
+    ✅ Podcasts wurden überprüft!<br>
+   <a href="http://127.0.0.1:8000/podcast_page" target="_blank">🎧 Hier anhören</a></p>`;
+   
+
+
+  } catch (error) {
+    console.error("Fehler bei der Podcastgenerierung:", error);
+    alert("❌ Fehler bei der Podcastgenerierung!");
+  }
+}
+</script>
+
+</body>
+</html>
