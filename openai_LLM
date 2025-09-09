@@ -1,0 +1,232 @@
+import openai 
+from openai import OpenAI
+import json
+import os
+import re
+from time import sleep
+from vector_database import query_qdrant
+from dotenv import load_dotenv
+
+load_dotenv()
+
+openai.api_key = "API-KEY" #env
+
+def generate_skill_tree_from_documents(documents: list, max_chars: int = 18000) -> dict:
+    combined = ""
+    for i, doc in enumerate(documents):
+        entry = f"{i+1}. Quelle: {doc.get('source', 'unbekannt')}\n{doc['text'].strip()}\n\n"
+        if len(combined) + len(entry) > max_chars:
+            break
+        combined += entry
+    
+    if not combined.strip():
+     print("🚫 Kein Text für Skill-Tree verfügbar.")
+     return {}
+
+    docs_text = combined
+    prompt = f"""
+Du bist ein strukturierter Lernexperte für Softwareentwicklung.
+
+Deine Aufgabe:
+Aus den folgenden internen Dokumentenauszügen sollst du einen **präzisen Skill-Tree** im JSON-Format erzeugen. Der Skill-Tree dient dazu, den Lernstand von Entwicklern gezielt zu erfassen.
+
+📌 Ziel:
+Der Skill-Tree soll als Grundlage für gezielte Wissensdiagnose und individuelle Empfehlungen dienen.
+
+🔧 Anforderungen an die Struktur:
+- Oberknoten: thematische Bereiche (z. B. „SAP BTP“, „CAP“, „Fiori“, „CDS“, „Systemarchitektur“)
+- Unterknoten: konkret benennbare, **prüfbare Fähigkeiten** oder technische Konzepte
+- Jeder Skill soll als **eigenständige, bewertbare Einheit** formuliert sein
+- Vermeide doppelte oder überlappende Formulierungen
+- Jeder Unterknoten enthält ein Feld "Quelle"
+
+📘 Basisdaten (Dokumentenauszüge):
+<<<
+{docs_text}
+>>>
+
+Gib **nur den JSON-Skill-Tree** zurück – ohne weitere Erklärungen oder Einleitungen.
+"""
+    print("Prompt an LLM")
+    print(prompt)
+
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Du bist ein strukturierter KI-Assistent für Lernpfade."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0,
+        max_tokens=1000,
+    )
+
+    content = response.choices[0].message.content
+    cleaned = re.sub(r"^```(?:json)?|```$", "", content.strip(), flags=re.MULTILINE)
+
+    try:
+        skill_tree = json.loads(cleaned)
+        return skill_tree
+    except json.JSONDecodeError as e:
+        print("⚠️ JSON-Fehler:", e)
+        print("Rohdaten:\n", cleaned)
+        return {}
+
+def save_skill_tree_to_file(skill_tree: dict, filename="skill_tree_auto3.json"):
+    try:
+        os.makedirs("skill_trees", exist_ok=True)
+        filepath = os.path.join("skill_trees", filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(skill_tree, f, indent=2, ensure_ascii=False)
+        print(f"✅ Skill-Tree erfolgreich gespeichert unter: {filepath}")
+    except Exception as e:
+        print(f"❌ Fehler beim Speichern des Skill-Trees: {e}")
+
+def flatten(tree: dict) -> list:
+    skills = []
+
+    def recurse(t, prefix=""):
+        for k, v in t.items():
+            if isinstance(v, dict):
+                # ✅ Unterstützt Struktur: {"skills": [{"name": ..., "source": ...}]}
+                if "skills" in v and isinstance(v["skills"], list):
+                    for skill in v["skills"]:
+                        if isinstance(skill, dict) and "name" in skill:
+                            skill_path = f"{prefix}{skill['name']}" if prefix else skill["name"]
+                            quelle = skill.get("source", "unbekannt")
+                            skills.append({"skill": skill_path, "quelle": quelle})
+                else:
+                    recurse(v, prefix=f"{k} > ")
+
+    recurse(tree)
+    return skills
+
+
+def select_top_n_chunks_by_similarity_from_qdrant(skill_text: str, top_n=3):
+    # semantische Suche direkt in Qdrant
+    return query_qdrant(skill_text, limit=top_n)
+
+def generate_15_questions_from_skill_tree(skill_tree_path, output_path="15_selektierte_fragen_LLM.json"):
+    """
+    Erstellt genau 5 technische Multiple-Choice-Fragen basierend auf dem gesamten Skill-Tree
+    und den relevantesten Dokumenten aus der Vektordatenbank.
+    """
+    print("Starte die Generierung von 5 technischen Fragen...")
+
+    # 1. Lade den Skill-Tree und extrahiere alle Skills als Text
+    try:
+        with open(skill_tree_path, "r", encoding="utf-8") as f:
+            skill_tree = json.load(f)
+    except FileNotFoundError:
+        print(f"❌ Fehler: Skill-Tree-Datei nicht gefunden unter {skill_tree_path}")
+        return
+
+    skill_list = flatten(skill_tree)
+    if not skill_list:
+        print("❌ Keine Skills im Skill-Tree gefunden. Abbruch.")
+        return
+
+    # Kombiniere alle Skills zu einer einzigen Suchanfrage, um den besten Kontext zu finden
+    all_skills_query = " ".join([s["skill"] for s in skill_list])
+    skill_names_for_prompt = ", ".join([s["skill"] for s in skill_list])
+
+    # 2. Hole die 7 relevantesten Dokumenten-Chunks für den gesamten Skill-Kontext
+    print("Suche relevante Dokumente in der Vektordatenbank...")
+    relevant_docs = select_top_n_chunks_by_similarity_from_qdrant(all_skills_query, top_n=7)
+
+    if not relevant_docs:
+        print("⚠️ Keine relevanten Dokumente für die Fragenerstellung gefunden.")
+        return
+
+    context_text_for_prompt = "\n\n---\n\n".join(
+        [f"Dokument-Quelle: {doc.get('quelle', 'unbekannt')}\nInhalt: {doc['text']}" for doc in relevant_docs]
+    )
+
+    # 3. Erstelle einen einzigen, mächtigen Prompt, der genau 5 Fragen anfordert
+    prompt = f"""
+  Du bist ein Fachexperte und technischer Trainer für SAP-Systemarchitektur und -Entwicklung.
+  Deine Aufgabe ist es, ein anspruchsvolles Quiz zu erstellen, um das Wissen von Entwicklern zu überprüfen.
+
+  Basierend auf den folgenden Skills und den dazugehörigen Dokumentenauszügen, erstelle GENAU 5 unterschiedliche, technische Multiple-Choice-Fragen.
+
+  ---
+  **VERFÜGBARE SKILLS:**
+  {skill_names_for_prompt}
+
+  ---
+  **RELEVANTE DOKUMENTENAUSZÜGE ALS KONTEXT:**
+  {context_text_for_prompt}
+
+  ---
+  **ANWEISUNGEN FÜR DIE AUSGABE:**
+  1.  **Anzahl:** Erstelle **exakt 5** Fragen. Nicht mehr, nicht weniger.
+  2.  **Qualität:** Die Fragen müssen technisch fundiert, präzise und nicht trivial sein.
+  3.  **Format:** Gib das Ergebnis als ein einziges JSON-Objekt zurück. Die Schlüssel des Objekts sollen die Namen der Skills sein, auf die sich die jeweilige Frage bezieht.
+  4.  **Inhalt:** Jede Frage muss eine korrekte Antwort (`"korrekt": true`) und mindestens zwei plausible, aber falsche Antworten (`"korrekt": false`) haben.
+  5.  **Quelle:** Übernimm die "Dokument-Quelle" aus dem Kontext als Wert für das "quelle"-Feld im JSON.
+
+ **BEISPIEL-FORMAT DER JSON-AUSGABE:**
+  ```json
+ {{
+  "Name des ersten Skills": {{
+    "frage": "Technische Frage zu Skill 1...",
+    "antworten": [
+      {{ "text": "Korrekte Antwort", "korrekt": true }},
+      {{ "text": "Falsche Antwort 1", "korrekt": false }},
+      {{ "text": "Falsche Antwort 2", "korrekt": false }}
+    ],
+    "quelle": "Name der Dokument-Quelle"
+  }},
+  "Name des zweiten Skills": {{
+    "frage": "Technische Frage zu Skill 2...",
+    "antworten": [
+      {{ "text": "...", "korrekt": true }},
+      {{ "text": "...", "korrekt": false }}
+    ],
+    "quelle": "..."
+  }},
+  "...": "..."
+ }}
+ """
+    print("Sende Anfrage an das LLM, um 5 Fragen zu generieren...")
+
+    client = OpenAI(api_key='API-KEY') #env
+    response = client.chat.completions.create(
+        model="gpt-4o", 
+        messages=[
+            {"role": "system", "content": "Du bist ein Experte für technische Wissensabfragen im JSON-Format."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.3,
+        response_format={"type": "json_object"} # Erzwingt JSON-Ausgabe
+      )
+    content = response.choices[0].message.content
+    questions_json = json.loads(content)
+
+     # 5. Speichere das Ergebnis
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(questions_json, f, indent=2, ensure_ascii=False)
+
+    print(f"✅ {len(questions_json)} Fragen erfolgreich in {output_path} gespeichert.")
+
+def generate_feedback_report(answer_data: list) -> str:
+    prompt = f"""
+Du bist ein Lerntutor. Analysiere die folgenden Quiz-Antworten und gib dem Nutzer eine freundliche, aber konkrete Rückmeldung zu seinem Wissen.
+
+Empfiehl, welche Quellen er sich nochmal anschauen sollte und warum. Begründe das pädagogisch.
+
+Ziel ist es, das Wissen im Bereich SAP Clean Core, CDS-Views und verwandten Themen zu verbessern.
+
+### Antwortdaten:
+{json.dumps(answer_data, indent=2, ensure_ascii=False)}
+"""
+    client = OpenAI()  # oder dein bestehendes Konstrukt
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Du bist ein hilfsbereiter Lerntutor."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+        max_tokens=600
+    )
+    return response.choices[0].message.content.strip()
