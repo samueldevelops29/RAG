@@ -1,0 +1,92 @@
+{
+  "Verstehen der Nutzung von RFC-Technologie aus Sicht SAP Remote Function Control": {
+    "frage": "Welche der folgenden Aussagen beschreibt am besten die Funktionalität von RFC in einem SAP-System?",
+    "antworten": [
+      {
+        "text": "RFC ermöglicht die Kommunikation zwischen verschiedenen SAP-Systemen und externen Anwendungen.",
+        "korrekt": true
+      },
+      {
+        "text": "RFC wird ausschließlich zur Datenbankreplikation innerhalb eines SAP-Systems verwendet.",
+        "korrekt": false
+      },
+      {
+        "text": "RFC dient der Erstellung von Benutzeroberflächen in SAP Fiori.",
+        "korrekt": false
+      }
+    ],
+    "quelle": "2024_S4HC_Delta-Design_TPIT_Architektur"
+  },
+  "Verstehen der Nutzung von DB-Connect (ODBC)": {
+    "frage": "Welche Rolle spielt ODBC im Kontext von DB-Connect in SAP?",
+    "antworten": [
+      {
+        "text": "ODBC ermöglicht den Zugriff auf verschiedene Datenbanken, indem es eine standardisierte Schnittstelle bereitstellt.",
+        "korrekt": true
+      },
+      {
+        "text": "ODBC wird verwendet, um SAP-GUI-Transaktionen zu sichern.",
+        "korrekt": false
+      },
+      {
+        "text": "ODBC ist ein Protokoll zur Übertragung von Dateien über das Internet.",
+        "korrekt": false
+      }
+    ],
+    "quelle": "2024_S4HC_Delta-Design_TPIT_Architektur"
+  },
+  "Verstehen der Kompatibilität von Integrations-Content-Artefakten zwischen Neo und Cloud Foundry Umgebungen": {
+    "frage": "Welche Herausforderung besteht bei der Migration von Integrations-Content-Artefakten von Neo zu Cloud Foundry?",
+    "antworten": [
+      {
+        "text": "Unterschiedliche API-Versionen und fehlende Kompatibilität können Anpassungen erfordern.",
+        "korrekt": true
+      },
+      {
+        "text": "Die Notwendigkeit, alle Benutzeroberflächen manuell neu zu gestalten.",
+        "korrekt": false
+      },
+      {
+        "text": "Die Migration erfordert keine Anpassungen, da beide Umgebungen identisch sind.",
+        "korrekt": false
+      }
+    ],
+    "quelle": "2024_S4HC_Delta-Design_TPIT_Architektur"
+  },
+  "Verstehen der Aufbereitung und Anpassung vor der Erstellung der Bestellung im ERP Backend": {
+    "frage": "Welche Schritte sind notwendig, bevor eine Bestellung im ERP Backend erstellt werden kann?",
+    "antworten": [
+      {
+        "text": "Datenvalidierung und Anpassung der Bestellanforderungen an die Unternehmensrichtlinien.",
+        "korrekt": true
+      },
+      {
+        "text": "Direkte Erstellung der Bestellung ohne vorherige Datenprüfung.",
+        "korrekt": false
+      },
+      {
+        "text": "Nur die Preisverhandlungen müssen abgeschlossen sein.",
+        "korrekt": false
+      }
+    ],
+    "quelle": "2024_S4HC_Delta-Design_TPIT_Architektur"
+  },
+  "Verstehen der Berechtigungen für den Zugriff auf eine SAP-GUI-Transaktion": {
+    "frage": "Welche Komponente ist entscheidend für die Kontrolle des Zugriffs auf SAP-GUI-Transaktionen?",
+    "antworten": [
+      {
+        "text": "Das Berechtigungsobjekt, das spezifische Transaktionscodes und Benutzerrollen zuweist.",
+        "korrekt": true
+      },
+      {
+        "text": "Die Netzwerkfirewall, die den Zugriff auf das SAP-System steuert.",
+        "korrekt": false
+      },
+      {
+        "text": "Die grafische Benutzeroberfläche, die den Zugriff basierend auf der Bildschirmauflösung einschränkt.",
+        "korrekt": false
+      }
+    ],
+    "quelle": "2024_S4HC_Delta-Design_TPIT_Architektur"
+  }
+}
